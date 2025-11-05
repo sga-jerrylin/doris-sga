@@ -31,6 +31,77 @@ app.add_middleware(
 )
 
 
+# ============ 启动事件 ============
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    应用启动时初始化数据库
+    """
+    import time
+    import pymysql
+
+    max_retries = 30
+    retry_interval = 2
+
+    print("=" * 60)
+    print("🚀 Doris API Gateway 启动中...")
+    print("=" * 60)
+
+    # 等待 Doris FE 就绪
+    for i in range(max_retries):
+        try:
+            print(f"⏳ 等待 Doris FE 就绪... ({i+1}/{max_retries})")
+
+            # 尝试连接到 Doris (不指定数据库)
+            conn = pymysql.connect(
+                host=DORIS_CONFIG['host'],
+                port=DORIS_CONFIG['port'],
+                user=DORIS_CONFIG['user'],
+                password=DORIS_CONFIG['password'],
+                connect_timeout=5
+            )
+
+            cursor = conn.cursor()
+
+            # 创建数据库
+            db_name = DORIS_CONFIG['database']
+            print(f"📦 创建数据库: {db_name}")
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+
+            # 验证数据库创建成功
+            cursor.execute("SHOW DATABASES")
+            databases = [row[0] for row in cursor.fetchall()]
+
+            if db_name in databases:
+                print(f"✅ 数据库 '{db_name}' 已就绪")
+            else:
+                print(f"⚠️  数据库 '{db_name}' 创建失败")
+
+            cursor.close()
+            conn.close()
+
+            print("=" * 60)
+            print("✅ Doris API Gateway 启动成功!")
+            print(f"📊 数据库: {db_name}")
+            print(f"🌐 API 地址: http://{API_HOST}:{API_PORT}")
+            print(f"📖 API 文档: http://{API_HOST}:{API_PORT}/docs")
+            print("=" * 60)
+            break
+
+        except Exception as e:
+            if i < max_retries - 1:
+                print(f"❌ 连接失败: {str(e)}")
+                print(f"⏳ {retry_interval} 秒后重试...")
+                time.sleep(retry_interval)
+            else:
+                print("=" * 60)
+                print("❌ 无法连接到 Doris FE,请检查配置")
+                print(f"错误: {str(e)}")
+                print("=" * 60)
+                raise
+
+
 # ============ 数据模型 ============
 
 class ExecuteRequest(BaseModel):

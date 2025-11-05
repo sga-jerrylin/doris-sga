@@ -71,6 +71,9 @@ services:
     environment:
       - DORIS_HOST=doris-fe
       - DORIS_PORT=9030
+      - DORIS_USER=root
+      - DORIS_PASSWORD=
+      - DORIS_DATABASE=doris_db
       - DORIS_STREAM_LOAD_HOST=doris-be
       - DORIS_STREAM_LOAD_PORT=8040
       - DEEPSEEK_API_KEY=sk-748638f482f74b7392a6dafd89bdd307
