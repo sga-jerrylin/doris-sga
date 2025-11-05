@@ -165,53 +165,132 @@ class VannaDoris(VannaBase):
         """Get similar question-SQL pairs (not implemented)"""
         return []
     
-    def get_sql_prompt(self, question: str, question_sql_list: List[Dict[str, str]], 
+    def get_column_sample_values(self, table_name: str, column_name: str, limit: int = 20) -> List[str]:
+        """
+        Get sample distinct values from a column to help with fuzzy matching
+
+        Args:
+            table_name: Name of the table
+            column_name: Name of the column
+            limit: Maximum number of distinct values to return
+
+        Returns:
+            List of distinct values
+        """
+        try:
+            sql = f"SELECT DISTINCT `{column_name}` FROM `{table_name}` WHERE `{column_name}` IS NOT NULL LIMIT {limit}"
+            results = self.run_sql(sql)
+            return [str(row[column_name]) for row in results if row.get(column_name)]
+        except:
+            return []
+
+    def get_sql_prompt(self, question: str, question_sql_list: List[Dict[str, str]],
                        ddl_list: List[str], doc_list: List[str], **kwargs) -> str:
         """
-        Generate the prompt for SQL generation
-        
+        Generate the prompt for SQL generation with intelligent data context
+
         Args:
             question: Natural language question
             question_sql_list: List of example question-SQL pairs
             ddl_list: List of DDL statements
             doc_list: List of documentation strings
-            
+
         Returns:
-            Formatted prompt string
+            Formatted prompt string with data context
         """
         # Build the prompt
         prompt = "You are an expert SQL query generator for Apache Doris database.\n\n"
-        
+
+        prompt += "=" * 80 + "\n"
+        prompt += "IMPORTANT: Your goal is to generate SQL that ACTUALLY RETURNS DATA.\n"
+        prompt += "=" * 80 + "\n\n"
+
         # Add DDL information
         if ddl_list:
-            prompt += "# Database Schema\n\n"
+            prompt += "# 1. Database Schema\n\n"
             for ddl in ddl_list:
                 prompt += f"{ddl}\n\n"
-        
+
+        # Add sample data with actual values from the database
+        prompt += "# 2. Sample Data (ACTUAL VALUES from database)\n\n"
+        prompt += "**CRITICAL**: Use these actual values to understand the data format!\n\n"
+
+        try:
+            tables = self.get_table_names()
+            for table in tables[:5]:  # Limit to first 5 tables
+                try:
+                    # Get sample rows
+                    sample_data = self.run_sql(f"SELECT * FROM `{table}` LIMIT 3")
+                    if sample_data:
+                        prompt += f"Table: `{table}`\n"
+                        prompt += f"Sample rows:\n"
+                        for i, row in enumerate(sample_data, 1):
+                            prompt += f"  Row {i}: {row}\n"
+
+                        # Get distinct values for text columns (likely to contain city/province names)
+                        schema = self.get_table_schema(table)
+                        for col in schema:
+                            col_name = col.get('Field', '')
+                            col_type = col.get('Type', '').upper()
+
+                            # Focus on VARCHAR/TEXT columns that might contain location data
+                            if 'VARCHAR' in col_type or 'TEXT' in col_type or 'CHAR' in col_type:
+                                # Check if column name suggests it's a location field
+                                if any(keyword in col_name.lower() for keyword in ['city', 'province', 'region', 'location', '城市', '省', '地区', '区域']):
+                                    distinct_values = self.get_column_sample_values(table, col_name, limit=30)
+                                    if distinct_values:
+                                        prompt += f"\n  Column `{col_name}` contains these ACTUAL values:\n"
+                                        prompt += f"  {distinct_values}\n"
+
+                        prompt += "\n"
+                except Exception as e:
+                    # Skip tables that fail
+                    pass
+        except:
+            pass
+
         # Add example queries if available
         if question_sql_list:
-            prompt += "# Example Queries\n\n"
+            prompt += "# 3. Example Queries\n\n"
             for example in question_sql_list:
                 prompt += f"Question: {example.get('question', '')}\n"
                 prompt += f"SQL: {example.get('sql', '')}\n\n"
-        
+
         # Add documentation if available
         if doc_list:
-            prompt += "# Documentation\n\n"
+            prompt += "# 4. Additional Documentation\n\n"
             for doc in doc_list:
                 prompt += f"{doc}\n\n"
-        
+
         # Add the actual question
-        prompt += f"# Task\n\nGenerate a SQL query for Apache Doris to answer the following question:\n\n"
+        prompt += "# 5. Your Task\n\n"
         prompt += f"Question: {question}\n\n"
-        prompt += "Requirements:\n"
-        prompt += "1. Generate ONLY the SQL query, no explanations\n"
-        prompt += "2. Use proper column names and table names (use backticks for Chinese names)\n"
-        prompt += "3. The SQL should be executable in Apache Doris\n"
-        prompt += "4. Do not include markdown code blocks or any other formatting\n"
-        prompt += "5. Return only the raw SQL statement\n\n"
+
+        prompt += "# 6. Critical Instructions\n\n"
+        prompt += "**READ THE SAMPLE DATA ABOVE CAREFULLY!**\n\n"
+        prompt += "Rules:\n"
+        prompt += "1. Generate ONLY the SQL query, no explanations or comments\n"
+        prompt += "2. Use backticks for Chinese column/table names: `城市`, `省份`\n"
+        prompt += "3. The SQL MUST be executable in Apache Doris\n"
+        prompt += "4. Do NOT use markdown code blocks (no ```sql)\n"
+        prompt += "5. Return ONLY the raw SQL statement\n\n"
+
+        prompt += "**FUZZY MATCHING RULES** (MOST IMPORTANT):\n"
+        prompt += "- If the question mentions a location (city/province), CHECK the sample data above\n"
+        prompt += "- If sample data shows '广州市' but question asks '广州', use: WHERE column LIKE '%广州%'\n"
+        prompt += "- If sample data shows '北京市' but question asks '北京', use: WHERE column LIKE '%北京%'\n"
+        prompt += "- ALWAYS use LIKE '%keyword%' for location searches unless you see an EXACT match in sample data\n"
+        prompt += "- For numeric comparisons (year, count, etc.), use exact match (=, >, <)\n"
+        prompt += "- For text searches (names, locations), prefer LIKE '%keyword%' for better recall\n\n"
+
+        prompt += "**EXAMPLES**:\n"
+        prompt += "- Question: '来自广州的机构' + Sample data has '广州市' → WHERE `城市` LIKE '%广州%'\n"
+        prompt += "- Question: '2022年的数据' → WHERE `年份` = 2022\n"
+        prompt += "- Question: '包含科技的公司' → WHERE `公司名` LIKE '%科技%'\n\n"
+
+        prompt += "Now generate the SQL query:\n\n"
         prompt += "SQL:"
-        
+
         return prompt
     
     def submit_prompt(self, prompt: str, **kwargs) -> str:
