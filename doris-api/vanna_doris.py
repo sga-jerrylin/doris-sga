@@ -339,18 +339,92 @@ class VannaDoris(VannaBase):
         
         # Clean up the response
         sql = sql.strip()
-        
+
         # Remove markdown code blocks if present
         if sql.startswith('```sql'):
             sql = sql[6:]
         elif sql.startswith('```'):
             sql = sql[3:]
-        
+
         if sql.endswith('```'):
             sql = sql[:-3]
-        
+
         sql = sql.strip()
-        
+
+        # 🔥 POST-PROCESS: Auto-convert exact matches to fuzzy matches for location fields
+        sql = self.auto_fuzzy_match_locations(sql)
+
+        return sql
+
+    def auto_fuzzy_match_locations(self, sql: str) -> str:
+        """
+        Automatically convert exact matches to fuzzy matches for location-related fields.
+
+        Examples:
+        - WHERE 所在省 = '福建省' → WHERE 所在省 LIKE '%福建%'
+        - WHERE 所在市 = '广州市' → WHERE 所在市 LIKE '%广州%'
+        - WHERE `城市` = '北京' → WHERE `城市` LIKE '%北京%'
+
+        Args:
+            sql: Original SQL query
+
+        Returns:
+            Modified SQL with fuzzy matching for locations
+        """
+        import re
+
+        # Define location-related column patterns (Chinese)
+        location_keywords = [
+            '省', '市', '区', '县', '城市', '地区', '省份', '所在省', '所在市',
+            '所在地', '地域', '区域', '省市', '城镇', '乡镇'
+        ]
+
+        # Pattern to match: column_name = 'value' or `column_name` = 'value'
+        # We'll convert these to LIKE '%value_core%'
+        for keyword in location_keywords:
+            # Pattern 1: With backticks `column` = 'value'
+            pattern1 = rf"`([^`]*{keyword}[^`]*)` = '([^']+)'"
+            matches1 = re.finditer(pattern1, sql)
+            for match in matches1:
+                original = match.group(0)
+                column = match.group(1)
+                value = match.group(2)
+
+                # Extract core location name (remove 省/市 suffix if present)
+                value_core = value
+                if value.endswith('省'):
+                    value_core = value[:-1]
+                elif value.endswith('市'):
+                    value_core = value[:-1]
+
+                # Replace with LIKE pattern
+                new_clause = f"`{column}` LIKE '%{value_core}%'"
+                sql = sql.replace(original, new_clause)
+
+            # Pattern 2: Without backticks column = 'value'
+            # Only match if column name contains the keyword
+            pattern2 = rf"(\b\w*{keyword}\w*) = '([^']+)'"
+            matches2 = re.finditer(pattern2, sql)
+            for match in matches2:
+                original = match.group(0)
+                column = match.group(1)
+                value = match.group(2)
+
+                # Skip if already processed (has backticks)
+                if f"`{column}`" in sql:
+                    continue
+
+                # Extract core location name
+                value_core = value
+                if value.endswith('省'):
+                    value_core = value[:-1]
+                elif value.endswith('市'):
+                    value_core = value[:-1]
+
+                # Replace with LIKE pattern
+                new_clause = f"{column} LIKE '%{value_core}%'"
+                sql = sql.replace(original, new_clause)
+
         return sql
 
 
