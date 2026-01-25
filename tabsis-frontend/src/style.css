@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&display=swap');
+
+:root {
+  font-family: 'Orbitron', 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Default Dark Theme (Cyberpunk) */
+  --neon-blue: #00f3ff;
+  --neon-purple: #bc13fe;
+  --neon-green: #0aff68;
+  --bg-dark: #000000;
+  --glass-bg: rgba(10, 15, 30, 0.6);
+  --glass-border: rgba(0, 243, 255, 0.2);
+  --text-glow: 0 0 10px rgba(0, 243, 255, 0.5);
+  
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --border-color: rgba(0, 243, 255, 0.3);
+  --app-bg: url('/bg.png');
+  --sidebar-bg: rgba(0, 0, 0, 0.5);
+  --card-hover-bg: rgba(255, 255, 255, 0.05);
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  /* Light Theme (Professional Financial) */
+  --neon-blue: #0056b3;  /* Deep Corporate Blue */
+  --neon-purple: #6f42c1; /* Professional Purple */
+  --neon-green: #28a745; /* Success Green */
+  --bg-dark: #f4f6f9;    /* Light Gray Background */
+  --glass-bg: #ffffff;   /* Solid White Card */
+  --glass-border: #e2e6ea; /* Subtle Border */
+  --text-glow: none;
+
+  --text-primary: #212529; /* Dark Gray Text */
+  --text-secondary: #6c757d; /* Muted Text */
+  --border-color: #dee2e6;
+  --app-bg: #f4f6f9;
+  --sidebar-bg: #ffffff;
+  --card-hover-bg: #f8f9fa;
+  --active-item-bg: #e9ecef;
+
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+[data-theme='light'] body {
+  background: #f4f6f9;
+}
+
+/* Standard Layout (No Curved Screen/3D in Light Mode) */
+.app-wrapper {
+  width: 100vw;
+  height: 100vh;
+  background: var(--app-bg);
+  position: relative;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Dark Mode Overrides (Keep Cyberpunk for Dark Mode) */
+[data-theme='dark'] .app-wrapper {
+  width: 98vw;
+  height: 96vh;
+  border-radius: 40px;
+  transform: rotateX(2deg);
+  border: 2px solid var(--border-color);
+  box-shadow: 0 0 100px rgba(0, 243, 255, 0.15);
+}
+
+[data-theme='dark'] {
+   --neon-blue: #00f3ff;
+   /* ... existing dark vars ... */
+}
+
+
+/* Scanline Effect - Only in Dark Mode */
+.app-wrapper::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 100, 0.03));
+  z-index: 1000;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+
+[data-theme='light'] .app-wrapper::after {
+  opacity: 0;
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* HUD Decorative Corners */
+.hud-corners {
+  position: relative;
+}
+
+.hud-corners::before,
+.hud-corners::after {
+  content: '';
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--neon-blue);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-corners::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.hud-corners::after {
+  top: -1px;
+  right: -1px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.corner-bottom-left,
+.corner-bottom-right {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--neon-blue);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.corner-bottom-left {
+  bottom: -1px;
+  left: -1px;
+  border-right: none;
+  border-top: none;
+}
+
+.corner-bottom-right {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.neon-icon {
+  filter: drop-shadow(0 0 8px currentColor);
+  transition: all 0.3s;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.3);
+  border-radius: 2px;
+}

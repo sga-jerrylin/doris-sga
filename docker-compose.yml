@@ -6,9 +6,10 @@ services:
   doris-fe:
     image: apache/doris:fe-4.0.0
     container_name: doris-fe
-    hostname: doris-fe
+    hostname: fe1
+    restart: unless-stopped
     environment:
-      - FE_SERVERS=fe1:192.168.88.2:9010
+      - FE_SERVERS=fe1:172.28.0.2:9010
       - FE_ID=1
     ports:
       - "18030:8030"   # HTTP 端口 - Web UI
@@ -19,7 +20,7 @@ services:
       - doris-fe-log:/opt/apache-doris/fe/log
     networks:
       doris-network:
-        ipv4_address: 192.168.88.2
+        ipv4_address: 172.28.0.2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8030/api/bootstrap"]
       interval: 30s
@@ -32,12 +33,19 @@ services:
     image: apache/doris:be-4.0.0
     container_name: doris-be
     hostname: doris-be
+    restart: unless-stopped
     depends_on:
       doris-fe:
         condition: service_healthy
     environment:
-      - FE_SERVERS=fe1:192.168.88.2:9010
-      - BE_ADDR=192.168.88.3:9050
+      - FE_SERVERS=fe1:172.28.0.2:9010
+      - BE_ADDR=172.28.0.3:9050
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
     ports:
       - "18040:8040"   # BE HTTP 端口
       - "19050:9050"   # BE 心跳端口
@@ -47,7 +55,7 @@ services:
       - doris-be-log:/opt/apache-doris/be/log
     networks:
       doris-network:
-        ipv4_address: 192.168.88.3
+        ipv4_address: 172.28.0.3
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8040/api/health"]
       interval: 30s
@@ -57,10 +65,15 @@ services:
 
   # API Gateway
   doris-api:
-    build: ./doris-api
+    build:
+      context: ./tabsis-backend
+      dockerfile: Dockerfile
     container_name: doris-api
+    restart: unless-stopped
     ports:
       - "8018:8000"
+    volumes:
+      - doris-api-metadata:/app/data
     networks:
       - doris-network
     depends_on:
@@ -69,13 +82,14 @@ services:
       doris-be:
         condition: service_healthy
     environment:
-      - DORIS_HOST=doris-fe
+      - DORIS_HOST=fe1
       - DORIS_PORT=9030
       - DORIS_USER=root
       - DORIS_PASSWORD=
       - DORIS_DATABASE=doris_db
       - DORIS_STREAM_LOAD_HOST=doris-be
       - DORIS_STREAM_LOAD_PORT=8040
+      - METADATA_DB_FILE=data/metadata.sqlite3
       - DEEPSEEK_API_KEY=sk-748638f482f74b7392a6dafd89bdd307
       - DEEPSEEK_MODEL=deepseek-chat
       - DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -83,9 +97,10 @@ services:
   # Frontend Web UI
   doris-frontend:
     build:
-      context: ./doris-frontend
+      context: ./tabsis-frontend
       dockerfile: Dockerfile
     container_name: doris-frontend
+    restart: unless-stopped
     ports:
       - "5173:80"
     networks:
@@ -98,8 +113,9 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.88.0/24
-          gateway: 192.168.88.1
+        - subnet: 172.28.0.0/24
+          ip_range: 172.28.0.128/25
+          gateway: 172.28.0.1
 
 volumes:
   doris-fe-meta:
@@ -110,4 +126,5 @@ volumes:
     driver: local
   doris-be-log:
     driver: local
-
+  doris-api-metadata:
+    driver: local

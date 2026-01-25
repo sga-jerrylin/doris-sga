@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(python test_simple.py:*)",
+      "Bash(./test_curl.bat)",
+      "Bash(python:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(iconv:*)",
+      "Bash(docker stats:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose:*)"
+    ]
+  }
+}
