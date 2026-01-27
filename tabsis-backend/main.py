@@ -12,6 +12,7 @@ import os
 import json
 from io import BytesIO
 from datetime import datetime, timedelta
+from pymysql.err import OperationalError
 
 from config import API_HOST, API_PORT, DORIS_CONFIG
 from handlers import action_handler
@@ -1253,7 +1254,13 @@ async def export_invoice_project(invoice_project_id: int):
 @app.get("/api/modules/invoice/projects/{invoice_project_id}/export-selected")
 async def export_invoice_project_selected(invoice_project_id: int, items: str = ""):
     invoice_project = await InvoiceProject.get(id=invoice_project_id)
-    db_name = ensure_project_db(invoice_project.project_id)
+    try:
+        db_name = ensure_project_db(invoice_project.project_id)
+    except OperationalError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Doris FE 未就绪或不可用，请稍后重试。",
+        ) from exc
 
     sales_raw = invoice_project.sales_raw_table or invoice_handler._build_raw_table_name(
         invoice_project.project_id, invoice_project.company_id, invoice_project_id, "sales"
@@ -1284,7 +1291,8 @@ async def export_invoice_project_selected(invoice_project_id: int, items: str = 
     import pandas as pd
 
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+    # Use openpyxl to avoid a hard dependency on xlsxwriter in the container.
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
         for key in selected_keys:
             if key not in table_map:
                 continue
